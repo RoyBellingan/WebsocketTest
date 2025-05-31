@@ -46,13 +46,16 @@ void EchoServer::onNewConnection() {
 
 //! [processTextMessage]
 void EchoServer::processTextMessage(QString message) {
-	QWebSocket* pClient = qobject_cast<QWebSocket*>(sender());
+	//QWebSocket* pClient = qobject_cast<QWebSocket*>(sender());
 	if (m_debug)
 		qDebug().noquote() << "Message received:\n"
 		                   << message;
-	if (pClient) {
-		pClient->sendTextMessage(message);
-	}
+	// if (pClient) {
+	// 	pClient->sendTextMessage(message);
+	// }
+    for (auto& client : m_clients) {
+        client.first->sendTextMessage(message);
+    }
 }
 //! [processTextMessage]
 
