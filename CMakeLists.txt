@@ -35,6 +35,7 @@ target_link_libraries(echoserver PUBLIC
     Qt::WebSockets
     Qt::Widgets
     fmt
+    pqxx
 )
 
 install(TARGETS echoserver
@@ -42,3 +43,5 @@ install(TARGETS echoserver
     BUNDLE DESTINATION "${INSTALL_EXAMPLEDIR}"
     LIBRARY DESTINATION "${INSTALL_EXAMPLEDIR}"
 )
+
+#zypper in libpqxx-6_4 libpqxx-devel 

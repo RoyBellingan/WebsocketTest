@@ -6,27 +6,7 @@
 #include <QtCore/QDebug>
 #include <fmt/format.h>
 
-class HandlerBase {
-};
 
-class Thermo1 : public HandlerBase {
-};
-
-struct State {
-	uint msgRec  = 0;
-	uint msgSent = 0;
-	//so we know how to handle different devices
-	HandlerBase* handler;
-	//will be the primary key to identify things
-	std::string mac;
-	uint        userId = 0;
-	//used in the index to sort and process the queue
-	uint lastPoll = 0;
-	//if we think is connected, but we are not receiving data
-	uint lastUpdate = 0;
-	//indexed and needed to operate
-	QWebSocket* socket = nullptr;
-};
 
 //boost multi index
 std::map<QWebSocket*, State> m_clients;
