@@ -34,6 +34,7 @@ set_target_properties(echoserver PROPERTIES
 target_link_libraries(echoserver PUBLIC
     Qt::WebSockets
     Qt::Widgets
+    fmt
 )
 
 install(TARGETS echoserver

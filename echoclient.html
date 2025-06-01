@@ -36,6 +36,26 @@
 
             var wsUri = "ws://localhost:1234";
             var websocket = null;
+            var heartbeatInterval = null;
+
+            function startHeartbeat() {
+                // Clear any existing interval
+                if (heartbeatInterval) {
+                    clearInterval(heartbeatInterval);
+                }
+                
+                // Set up new interval
+                heartbeatInterval = setInterval(function() {
+                    if (websocket && websocket.readyState === WebSocket.OPEN) {
+                        //Connection is alive, should we send a ping?
+                        //websocket.send("ping");
+                    } else {
+                        // Connection is not open, try to reconnect
+                        debug("Connection lost, attempting to reconnect...");
+                        initWebSocket();
+                    }
+                }, 15000); // Check every 15 seconds
+            }
 
             function initWebSocket() {
                 try {
@@ -46,9 +66,15 @@
                     websocket = new WebSocket( wsUri );
                     websocket.onopen = function (evt) {
                         debug("CONNECTED");
+                        startHeartbeat(); // Start heartbeat when connected
                     };
                     websocket.onclose = function (evt) {
                         debug("DISCONNECTED");
+                        // Clear heartbeat interval when disconnected
+                        if (heartbeatInterval) {
+                            clearInterval(heartbeatInterval);
+                            heartbeatInterval = null;
+                        }
                     };
                     websocket.onmessage = function (evt) {
                         console.log( "Message received :", evt.data );
@@ -65,6 +91,11 @@
             function stopWebSocket() {
                 if (websocket)
                     websocket.close();
+                // Clear heartbeat interval when manually stopping
+                if (heartbeatInterval) {
+                    clearInterval(heartbeatInterval);
+                    heartbeatInterval = null;
+                }
             }
 
             function checkSocket() {

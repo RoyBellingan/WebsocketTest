@@ -4,39 +4,63 @@
 #include "QtWebSockets/qwebsocket.h"
 #include "QtWebSockets/qwebsocketserver.h"
 #include <QtCore/QDebug>
+#include <fmt/format.h>
 
-std::map<QWebSocket*, QWebSocket*> m_clients;
+class HandlerBase {
+};
+
+class Thermo1 : public HandlerBase {
+};
+
+struct State {
+	uint msgRec  = 0;
+	uint msgSent = 0;
+	//so we know how to handle different devices
+	HandlerBase* handler;
+	//will be the primary key to identify things
+	std::string mac;
+	uint        userId = 0;
+	//used in the index to sort and process the queue
+	uint lastPoll = 0;
+	//if we think is connected, but we are not receiving data
+	uint lastUpdate = 0;
+	//indexed and needed to operate
+	QWebSocket* socket = nullptr;
+};
+
+//boost multi index
+std::map<QWebSocket*, State> m_clients;
 
 QT_USE_NAMESPACE
 
 //! [constructor]
 EchoServer::EchoServer(quint16 port, bool debug, QObject* parent)
     : QObject(parent),
-      m_pWebSocketServer(new QWebSocketServer(QStringLiteral("Echo Server"),
-                                              QWebSocketServer::NonSecureMode, this)),
+      wsServer(new QWebSocketServer(QStringLiteral("Echo Server"),
+                                    QWebSocketServer::NonSecureMode, this)),
       m_debug(debug) {
-	if (m_pWebSocketServer->listen(QHostAddress::Any, port)) {
+	if (wsServer->listen(QHostAddress::Any, port)) {
 		if (m_debug)
 			qDebug() << "Echoserver listening on port" << port;
-		connect(m_pWebSocketServer, &QWebSocketServer::newConnection,
+		connect(wsServer, &QWebSocketServer::newConnection,
 		        this, &EchoServer::onNewConnection);
-		connect(m_pWebSocketServer, &QWebSocketServer::closed, this, &EchoServer::closed);
+		connect(wsServer, &QWebSocketServer::closed, this, &EchoServer::closed);
 	}
 }
 
 //! [constructor]
 
 EchoServer::~EchoServer() {
-	m_pWebSocketServer->close();
+	wsServer->close();
 	m_clients.clear();
 }
 
 //! [onNewConnection]
 void EchoServer::onNewConnection() {
-	QWebSocket* pSocket = m_pWebSocketServer->nextPendingConnection();
-	qDebug() << "New connection:" << pSocket;
-	qDebug() << "Clients:" << m_clients.size();
-	m_clients.insert(std::make_pair(pSocket, pSocket));
+	QWebSocket* pSocket = wsServer->nextPendingConnection();
+	fmt::print("New connection: {}\n", pSocket->peerAddress().toString().toStdString());
+	fmt::print("Clients: {}\n", m_clients.size());
+	m_clients.insert(std::make_pair(pSocket, State()));
 
 	connect(pSocket, &QWebSocket::textMessageReceived, this, &EchoServer::processTextMessage);
 	connect(pSocket, &QWebSocket::binaryMessageReceived, this, &EchoServer::processBinaryMessage);
@@ -46,16 +70,16 @@ void EchoServer::onNewConnection() {
 
 //! [processTextMessage]
 void EchoServer::processTextMessage(QString message) {
-	//QWebSocket* pClient = qobject_cast<QWebSocket*>(sender());
-	if (m_debug)
-		qDebug().noquote() << "Message received:\n"
-		                   << message;
-	// if (pClient) {
-	// 	pClient->sendTextMessage(message);
-	// }
-    for (auto& client : m_clients) {
-        client.first->sendTextMessage(message);
-    }
+	QWebSocket* pClient = qobject_cast<QWebSocket*>(sender());
+	auto&       state   = m_clients.at(pClient);
+	state.msgRec++;
+	if (m_debug) {
+		fmt::print("Message {} received from client {}:\n{}\n", state.msgRec, pClient->peerAddress().toString().toStdString(), message.toStdString());
+	}
+	for (auto& [client, state] : m_clients) {
+		state.msgSent++;
+		client->sendTextMessage(message);
+	}
 }
 //! [processTextMessage]
 

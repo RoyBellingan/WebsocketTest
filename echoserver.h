@@ -14,7 +14,7 @@ class EchoServer : public QObject {
 	Q_OBJECT
       public:
 	explicit EchoServer(quint16 port, bool debug = false, QObject* parent = nullptr);
-    void sentoWSClient(QString text);
+
 	~EchoServer();
 
       Q_SIGNALS:
@@ -27,8 +27,8 @@ class EchoServer : public QObject {
 	void socketDisconnected();
 
       private:
-	QWebSocketServer*                  m_pWebSocketServer;
-	bool                               m_debug;
+	QWebSocketServer* wsServer;
+	bool              m_debug;
 };
 
 void sentoWSClient(const QString& text);

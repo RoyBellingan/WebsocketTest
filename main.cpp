@@ -39,3 +39,14 @@ int main(int argc, char *argv[])
 
     return app.exec();
 }
+
+/*
+send to shelly this
+
+{
+  "method": "Shelly.GetStatus",
+  "id": 1,
+  "params": {}
+}
+
+*/
