@@ -2,8 +2,9 @@
 #define APPLIANCE_H
 
 #include "rbk/misc/intTypes.h"
+#include <memory>
+#include <pqxx/row.hxx>
 #include <string>
-
 class QWebSocket;
 class Appliance;
 
@@ -15,7 +16,7 @@ struct State {
 	Appliance* handler;
 	//will be the primary key to identify things
 	std::string mac;
-	
+
 	//used in the index to sort and process the queue
 	uint lastPoll = 0;
 	//if we think is connected, but we are not receiving data
@@ -25,15 +26,16 @@ struct State {
 };
 
 class Appliance {
+      public:
+	static void loadAll();
+	virtual void fromRow(pqxx::row& row) = 0;
+
+	static std::shared_ptr<Appliance> factory(pqxx::row& row);
 };
 
 class Thermo1 : public Appliance {
-};
-
-class Appliance {
       public:
-	static void loadAll();
-	Appliance();
+	void fromRow(pqxx::row& row) override;
 };
 
 #endif // APPLIANCE_H

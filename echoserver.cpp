@@ -3,10 +3,9 @@
 #include "echoserver.h"
 #include "QtWebSockets/qwebsocket.h"
 #include "QtWebSockets/qwebsocketserver.h"
+#include "appliance.h"
 #include <QtCore/QDebug>
 #include <fmt/format.h>
-
-
 
 //boost multi index
 std::map<QWebSocket*, State> m_clients;
@@ -50,11 +49,13 @@ void EchoServer::onNewConnection() {
 
 //! [processTextMessage]
 void EchoServer::processTextMessage(QString message) {
-	QWebSocket* pClient = qobject_cast<QWebSocket*>(sender());
-	auto&       state   = m_clients.at(pClient);
-	state.msgRec++;
-	if (m_debug) {
-		fmt::print("Message {} received from client {}:\n{}\n", state.msgRec, pClient->peerAddress().toString().toStdString(), message.toStdString());
+	{
+		QWebSocket* pClient = qobject_cast<QWebSocket*>(sender());
+		auto&       state   = m_clients.at(pClient);
+		state.msgRec++;
+		if (m_debug) {
+			fmt::print("Message {} received from client {}:\n{}\n", state.msgRec, pClient->peerAddress().toString().toStdString(), message.toStdString());
+		}
 	}
 	for (auto& [client, state] : m_clients) {
 		state.msgSent++;
