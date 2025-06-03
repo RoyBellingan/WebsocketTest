@@ -20,7 +20,7 @@ void initConfig(std::string_view configFile) {
 	auto& dbConf  = config.dbConf;
 	dbConf.user   = "postgres";
 	dbConf.pass   = "powerpal";
-	dbConf.host   = "127.0.0.1";
+	dbConf.host   = "192.168.1.115";
 	dbConf.schema = "powerpal";
 	dbConf.port   = 54320;
     

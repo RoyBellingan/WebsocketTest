@@ -31,6 +31,4 @@ class EchoServer : public QObject {
 	bool              m_debug;
 };
 
-void sentoWSClient(const QString& text);
-
 #endif //ECHOSERVER_H

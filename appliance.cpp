@@ -1,7 +1,10 @@
 #include "appliance.h"
+#include <boost/json.hpp>
 #include <iostream>
 #include <pqxx/pqxx>
 #include <string>
+
+using namespace std;
 
 extern pqxx::connection* db;
 
@@ -19,8 +22,10 @@ void Appliance::loadAll() {
 		for (const auto& row : r) {
 			auto type  = row["type"].as<std::string>();
 			auto model = row["model"].as<std::string>();
-
-			std::cout << row["id"].as<int>() << " " << row["mac_address"].as<std::string>() << std::endl;
+			if (type == "Thermostat" && model == "changeMe") {
+				auto a = make_shared<Thermo1>();
+				a->fromRow(row);
+			}
 		}
 
 	} catch (const std::exception& e) {
@@ -28,5 +33,43 @@ void Appliance::loadAll() {
 	}
 }
 
-void Thermo1::fromRow(pqxx::row& row) {
+void Thermo1::fromRow(const pqxx::row& row) {
+	row["id"].to(dbId);
+	row["mac_address"].to(mac);
+}
+
+bool Thermo1::decodeMac(const boost::json::value& json) {
+	/**
+	 * We should receive something like this
+	 *
+	 * {
+	 ...
+	"params": {
+	    "sys": {
+	        "mac": "CC8DA2652404",
+	        ...
+	 *
+	 * We will not try to extract from the name, as can be changed!
+	 */
+
+	if (auto ptr = json.try_at_pointer("/params/sys/mac"); ptr) {
+		auto s = ptr->try_as_string();
+		if (s.has_value()) {
+			mac = s.value();
+			return true;
+		}
+	}
+
+	return true;
+}
+
+void ApplianceDummy::fromRow(const pqxx::row&) {
+}
+
+bool ApplianceDummy::decodeMac(const boost::json::value&) {
+	return false;
+}
+
+Client::Client() {
+	appliance = make_shared<ApplianceDummy>();
 }

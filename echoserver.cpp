@@ -7,8 +7,9 @@
 #include <QtCore/QDebug>
 #include <fmt/format.h>
 
-//boost multi index
-std::map<QWebSocket*, State> m_clients;
+#include "appliancemap.h"
+
+extern ClientMap clientMap;
 
 QT_USE_NAMESPACE
 
@@ -31,35 +32,49 @@ EchoServer::EchoServer(quint16 port, bool debug, QObject* parent)
 
 EchoServer::~EchoServer() {
 	wsServer->close();
-	m_clients.clear();
+	clientMap.clear();
 }
 
 //! [onNewConnection]
 void EchoServer::onNewConnection() {
 	QWebSocket* pSocket = wsServer->nextPendingConnection();
+
 	fmt::print("New connection: {}\n", pSocket->peerAddress().toString().toStdString());
-	fmt::print("Clients: {}\n", m_clients.size());
-	m_clients.insert(std::make_pair(pSocket, State()));
+	auto c      = std::make_shared<Client>();
+	c->qWSocket = pSocket;
+	clientMap.insert(c);
+
+	fmt::print("Clients: {}\n", clientMap.size());
 
 	connect(pSocket, &QWebSocket::textMessageReceived, this, &EchoServer::processTextMessage);
 	connect(pSocket, &QWebSocket::binaryMessageReceived, this, &EchoServer::processBinaryMessage);
 	connect(pSocket, &QWebSocket::disconnected, this, &EchoServer::socketDisconnected);
+
+	//send a message using all the registered possible type to get the mac asap
+	//normally on connect most devices will send by themself but there is not fault in asking once
+    
 }
 //! [onNewConnection]
 
 //! [processTextMessage]
 void EchoServer::processTextMessage(QString message) {
+	auto& cache = clientMap.get<ByQWebsocket>();
+
 	{
 		QWebSocket* pClient = qobject_cast<QWebSocket*>(sender());
-		auto&       state   = m_clients.at(pClient);
-		state.msgRec++;
-		if (m_debug) {
-			fmt::print("Message {} received from client {}:\n{}\n", state.msgRec, pClient->peerAddress().toString().toStdString(), message.toStdString());
+
+		if (auto iter = cache.find(pClient); iter != cache.end()) {
+			auto el = iter->get();
+			el->msgRec++;
+			if (m_debug) {
+				fmt::print("Message {} received from client {}:\n{}\n",
+				           el->msgRec, pClient->peerAddress().toString().toStdString(), message.toStdString());
+			}
 		}
 	}
-	for (auto& [client, state] : m_clients) {
-		state.msgSent++;
-		client->sendTextMessage(message);
+
+	for (const auto& client : cache) {
+		client->qWSocket->sendTextMessage(message);
 	}
 }
 //! [processTextMessage]
@@ -80,16 +95,9 @@ void EchoServer::socketDisconnected() {
 	QWebSocket* pClient = qobject_cast<QWebSocket*>(sender());
 	if (m_debug)
 		qDebug() << "socketDisconnected:" << pClient;
-	if (pClient) {
-		m_clients.erase(pClient);
-		pClient->deleteLater();
-	}
+	// if (pClient) {
+	// 	m_clients.erase(pClient);
+	// 	pClient->deleteLater();
+	// }
 }
 //! [socketDisconnected]
-
-void sentoWSClient(const QString& text) {
-	qDebug() << "sendin msg to " << m_clients.size() << "client";
-	for (auto& client : m_clients) {
-		client.first->sendTextMessage(text);
-	}
-}

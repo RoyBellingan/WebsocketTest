@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
 	parser.addOption(portOption);
 	parser.process(app);
 	bool debug = parser.isSet(dbgOption);
-	int  port  = parser.value(portOption).toInt();
+	u16  port  = parser.value(portOption).toUShort();
 
 	initConfig("smoe");
 
