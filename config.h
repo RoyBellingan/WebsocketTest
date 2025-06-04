@@ -5,11 +5,11 @@
 #include <string>
 #include <string_view>
 
-struct DBConf {
-    DBConf(){
-        //for reason the inline init is not working
-        port = 5432;
-    };
+struct PGDBConf {
+	PGDBConf() {
+		//for reason the inline init is not working
+		port = 5432;
+	};
 
 	std::string user;
 	std::string pass;
@@ -26,7 +26,7 @@ class Config {
 
 	Config() = default;
 
-	DBConf dbConf;
+	PGDBConf dbConf;
 };
 
 const Config& conf();

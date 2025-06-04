@@ -39,7 +39,7 @@ EchoServer::~EchoServer() {
 void EchoServer::onNewConnection() {
 	QWebSocket* pSocket = wsServer->nextPendingConnection();
 
-	fmt::print("New connection: {}\n", pSocket->peerAddress().toString().toStdString());
+	fmt::print("New connection: {} ({})\n", pSocket->peerAddress().toString().toStdString(), (void*)pSocket);
 	auto c      = std::make_shared<Client>();
 	c->qWSocket = pSocket;
 	clientMap.insert(c);
@@ -49,15 +49,16 @@ void EchoServer::onNewConnection() {
 	connect(pSocket, &QWebSocket::textMessageReceived, this, &EchoServer::processTextMessage);
 	connect(pSocket, &QWebSocket::binaryMessageReceived, this, &EchoServer::processBinaryMessage);
 	connect(pSocket, &QWebSocket::disconnected, this, &EchoServer::socketDisconnected);
+	connect(c.get(), &Client::sendMessage, this, &EchoServer::sendMessage);
 
 	//send a message using all the registered possible type to get the mac asap
 	//normally on connect most devices will send by themself but there is not fault in asking once
-    
+	c->sendInitialPacket();
 }
 //! [onNewConnection]
 
 //! [processTextMessage]
-void EchoServer::processTextMessage(QString message) {
+void EchoServer::processTextMessage(const QString& message) {
 	auto& cache = clientMap.get<ByQWebsocket>();
 
 	{
@@ -67,9 +68,13 @@ void EchoServer::processTextMessage(QString message) {
 			auto el = iter->get();
 			el->msgRec++;
 			if (m_debug) {
-				fmt::print("Message {} received from client {}:\n{}\n",
-				           el->msgRec, pClient->peerAddress().toString().toStdString(), message.toStdString());
+				fmt::print("Message nr {} received from client {} ({}) (mac: {}):\n{}\n",
+				           el->msgRec, pClient->peerAddress().toString().toStdString(),
+				           (void*)pClient,
+				           el->mac,
+				           message.toStdString());
 			}
+			el->appliance->decodePacket(message);
 		}
 	}
 
@@ -99,5 +104,9 @@ void EchoServer::socketDisconnected() {
 	// 	m_clients.erase(pClient);
 	// 	pClient->deleteLater();
 	// }
+}
+
+void EchoServer::sendMessage(const QString& message, Client* client) {
+	client->qWSocket->sendTextMessage(message);
 }
 //! [socketDisconnected]

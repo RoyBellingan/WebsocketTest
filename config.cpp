@@ -23,20 +23,20 @@ void initConfig(std::string_view configFile) {
 	dbConf.host   = "192.168.1.115";
 	dbConf.schema = "powerpal";
 	dbConf.port   = 54320;
-    
-	try {
-		std::string conn_string = fmt::format("postgresql://{}:{}@{}:{}/{}",
-		                                      config.dbConf.user, config.dbConf.pass, config.dbConf.host, config.dbConf.port, config.dbConf.schema);
-		db                      = new pqxx::connection(conn_string);
 
-		if (db->is_open()) {
-			fmt::print("Connected to database successfully!\n");
-		} else {
-			fmt::print("Failed to connect to database\n");
-		}
-	} catch (const std::exception& e) {
-		fmt::print("Database connection error: {}\n", e.what());
-	}
+	// try {
+	// 	std::string conn_string = fmt::format("postgresql://{}:{}@{}:{}/{}",
+	// 	                                      config.dbConf.user, config.dbConf.pass, config.dbConf.host, config.dbConf.port, config.dbConf.schema);
+	// 	db                      = new pqxx::connection(conn_string);
+
+	// 	if (db->is_open()) {
+	// 		fmt::print("Connected to database successfully!\n");
+	// 	} else {
+	// 		fmt::print("Failed to connect to database\n");
+	// 	}
+	// } catch (const std::exception& e) {
+	// 	fmt::print("Database connection error: {}\n", e.what());
+	// }
 }
 
 Config& setConf() {

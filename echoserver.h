@@ -10,6 +10,8 @@
 QT_FORWARD_DECLARE_CLASS(QWebSocketServer)
 QT_FORWARD_DECLARE_CLASS(QWebSocket)
 
+class Client;
+
 class EchoServer : public QObject {
 	Q_OBJECT
       public:
@@ -22,9 +24,10 @@ class EchoServer : public QObject {
 
       private Q_SLOTS:
 	void onNewConnection();
-	void processTextMessage(QString message);
+	void processTextMessage(const QString& message);
 	void processBinaryMessage(QByteArray message);
 	void socketDisconnected();
+	void sendMessage(const QString& message, Client* client);
 
       private:
 	QWebSocketServer* wsServer;
