@@ -4,6 +4,7 @@
 #include "echoserver.h"
 
 #include "config.h"
+#include "pollcycle.h"
 #include <QCoreApplication>
 #include <QDebug>
 #include <QtCore/QCommandLineOption>
@@ -11,6 +12,7 @@
 #include <QtCore/QCoreApplication>
 #include <QtCore/QLoggingCategory>
 #include <pqxx/pqxx>
+#include <thread>
 
 int main(int argc, char* argv[]) {
 	QCoreApplication app(argc, argv);
@@ -33,10 +35,12 @@ int main(int argc, char* argv[]) {
 
 	qDebug() << "start";
 
-	Appliance::loadAll();
+	//Appliance::loadAll();
 
 	EchoServer* server = new EchoServer(port, debug);
 	QObject::connect(server, &EchoServer::closed, &app, &QCoreApplication::quit);
+	std::thread t(PollCycle);
+	t.detach();
 
 	return app.exec();
 }

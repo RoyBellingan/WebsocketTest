@@ -1,4 +1,7 @@
 #include "appliance.h"
+#include "appliancemap.h"
+#include "qwebsocket.h"
+#include "rbk/BoostJson/extra.h"
 #include <boost/json.hpp>
 #include <iostream>
 #include <pqxx/pqxx>
@@ -7,6 +10,8 @@
 using namespace std;
 
 extern pqxx::connection* db;
+
+extern ClientMap clientMap;
 
 void Appliance::loadAll() {
 	//every now and then we will have to reload as new device might be added.
@@ -35,7 +40,7 @@ void Appliance::loadAll() {
 
 void Thermo1::fromRow(const pqxx::row& row) {
 	row["id"].to(dbId);
-	row["mac_address"].to(mac);
+	row["mac_address"].to(client->mac);
 }
 
 bool Thermo1::decodeMac(const boost::json::value& json) {
@@ -44,23 +49,75 @@ bool Thermo1::decodeMac(const boost::json::value& json) {
 	 *
 	 * {
 	 ...
-	"params": {
-	    "sys": {
-	        "mac": "CC8DA2652404",
+	"result": {
+	"mac": "CC8DA2652404",
 	        ...
 	 *
 	 * We will not try to extract from the name, as can be changed!
 	 */
 
-	if (auto ptr = json.try_at_pointer("/params/sys/mac"); ptr) {
+	if (auto ptr = json.try_at_pointer("/result/mac"); ptr) {
 		auto s = ptr->try_as_string();
 		if (s.has_value()) {
-			mac = s.value();
+			//This is an indexed value, we have to notify the cache
+			auto& cache = clientMap.get<ByQWebsocket>();
+			if (auto iter = cache.find(client->qWSocket); iter != cache.end()) {
+				cache.modify(iter, [&](ClientSP& c) {
+					c->mac = s.value();
+				});
+			}
+
+			//TODO also load from DB some info ...
+
 			return true;
 		}
 	}
 
 	return true;
+}
+
+bool Thermo1::decodePacket(const QString& pk) {
+	auto res = parseJson(pk, false);
+	if (res.position) {
+		return false;
+	}
+	return true;
+}
+
+void Thermo1::pollState() {
+	/** The usage of the ID is critical, because they do not send back what you asked -.-
+{   "id": 5,   "jsonrpc": "2.0",   "method": "Number.GetStatus",   "params": { "id": 200 } } -> humidty
+{"id":5,"src":"st1820-cc8da2652404","result":{"value":49,"source":"sys","last_update_ts":1749001693}}
+
+{   "id": 5,   "jsonrpc": "2.0",   "method": "Number.GetStatus",   "params": { "id": 201 } } -> cur temp
+{"id":5,"src":"st1820-cc8da2652404","result":{"value":21.4,"source":"sys","last_update_ts":1749001693}}
+
+{   "id": 5,   "jsonrpc": "2.0",   "method": "Number.GetStatus",   "params": { "id": 202 } } -> target temp
+{"id":5,"src":"st1820-cc8da2652404","result":{"value":19,"source":"sys","last_update_ts":1748915020}}
+*/
+	client->sendMessage(R"({"id": 200, "method": "Number.GetStatus",   "params": { "id": 200 } })", client);
+	client->sendMessage(R"({"id": 201, "method": "Number.GetStatus",   "params": { "id": 201 } })", client);
+	client->sendMessage(R"({"id": 202, "method": "Number.GetStatus",   "params": { "id": 202 } })", client);
+}
+
+bool Thermo1::identify(const boost::json::value& json) {
+	if (auto ptr = json.try_at_pointer("/result/model"); ptr) {
+		auto s = ptr->try_as_string();
+		if (s.has_value()) {
+			return s.value() == "S3XT-0S";
+		}
+	}
+	return false;
+}
+
+QString Thermo1::getInitialPacket() {
+	return R"(
+{
+  "method": "Shelly.GetDeviceInfo",
+  "id": 1,
+  "params": {}
+}
+)";
 }
 
 void ApplianceDummy::fromRow(const pqxx::row&) {
@@ -70,6 +127,37 @@ bool ApplianceDummy::decodeMac(const boost::json::value&) {
 	return false;
 }
 
+bool ApplianceDummy::decodePacket(const QString& pk) {
+	auto res = parseJson(pk, false);
+	if (res.position) {
+		return false;
+	}
+	if (Thermo1::identify(res.json)) {
+		auto copy            = client;
+		auto newAppliance    = make_shared<Thermo1>();
+		newAppliance->client = copy;
+		copy->appliance      = newAppliance;
+		copy->appliance->decodeMac(res.json);
+		return true;
+	}
+	return false;
+}
+
+void ApplianceDummy::pollState() {
+	client->sendMessage("dummy poll", client);
+}
+
 Client::Client() {
-	appliance = make_shared<ApplianceDummy>();
+	appliance         = make_shared<ApplianceDummy>();
+	appliance->client = this;
+	//we need an initial random value else we will have collision
+	mac = to_string(QDateTime::currentMSecsSinceEpoch());
+}
+
+Client::~Client() {
+}
+
+void Client::sendInitialPacket() const {
+	//TODO for the moment we only have 1 type to manage, in the future we will have to iterate over the N types we support and send the initial message
+	qWSocket->sendTextMessage(Thermo1::getInitialPacket());
 }
