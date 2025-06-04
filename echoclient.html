@@ -10,6 +10,12 @@
             <button onClick="checkSocket();">State</button>
         </p>
         <p>
+            <label for="addressInput">Server Address:</label>
+            <input type="text" id="addressInput" value="localhost" style="width:100px;"/>
+            <label for="portInput">Port:</label>
+            <input type="text" id="portInput" value="1234" style="width:60px;"/>
+        </p>
+        <p>
             <textarea id="debugTextArea" style="width:400px;height:200px;"></textarea>
         </p>
         <p>
@@ -34,7 +40,6 @@
                 }
             }
 
-            var wsUri = "ws://localhost:1234";
             var websocket = null;
             var heartbeatInterval = null;
 
@@ -58,6 +63,10 @@
             }
 
             function initWebSocket() {
+                var addressInput = document.getElementById("addressInput");
+                var portInput = document.getElementById("portInput");
+                var wsUri = `ws://${addressInput.value}:${portInput.value}`;
+                console.log( "wsUri: ", wsUri );
                 try {
                     if (typeof MozWebSocket == 'function')
                         WebSocket = MozWebSocket;
