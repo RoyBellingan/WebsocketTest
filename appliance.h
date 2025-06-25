@@ -2,7 +2,7 @@
 #define APPLIANCE_H
 
 #include "rbk/BoostJson/fwd.h"
-#include "rbk/misc/intTypes.h"
+#include "rbk/number/intTypes.h"
 #include <QObject>
 #include <QString>
 #include <memory>
@@ -16,11 +16,15 @@ class Client;
 class Appliance {
       public:
 	virtual ~Appliance() = default;
-	static void  loadAll();
-	virtual void fromRow(const pqxx::row& row)    = 0;
-	virtual bool decodeMac(const bj::value& json) = 0;
-	virtual bool decodePacket(const QString& pk)  = 0;
-	virtual void pollState()                      = 0;
+	static void                        loadAll();
+	virtual void                       fromRow(const pqxx::row& row)    = 0;
+	virtual bool                       decodeMac(const bj::value& json);
+	virtual bool                       decodePacket(const QString& pk)  = 0;
+	virtual void                       pollState()                      = 0;
+	virtual std::string_view           getModel() const                 = 0;
+	virtual std::shared_ptr<Appliance> clone() const                    = 0;
+
+	virtual bool identify(const bj::value& json) const;
 
 	static std::shared_ptr<Appliance> factory(pqxx::row& row);
 
@@ -34,6 +38,9 @@ class ApplianceDummy : public Appliance {
 	bool decodeMac(const bj::value&) override;
 	bool decodePacket(const QString& pk) override;
 	void pollState() override;
+
+	std::shared_ptr<Appliance> clone() const override;
+	std::string_view           getModel() const override;
 };
 
 class Client : public QObject {
@@ -63,7 +70,9 @@ class Client : public QObject {
 	//This is here and not in appliace for now, as is just easier to use the multi index
 	std::string mac;
 
-	void sendInitialPacket() const;
+	QString getInitialPacket() const;
+	void    sendInitialPacket() const;
+
       signals:
 	void sendMessage(const QString& message, Client* pClient);
 };
@@ -72,13 +81,19 @@ using ClientSP = std::shared_ptr<Client>;
 
 class Thermo1 : public Appliance {
       public:
-	static QString getInitialPacket();
-	static bool    identify(const bj::value& json);
+	std::string_view           getModel() const override;
+	void                       fromRow(const pqxx::row& row) override;
+	bool                       decodePacket(const QString& pk) override;
+	void                       pollState() override;
+	std::shared_ptr<Appliance> clone() const override;
+};
 
-	void fromRow(const pqxx::row& row) override;
-	bool decodeMac(const boost::json::value& json) override;
-	bool decodePacket(const QString& pk) override;
-	void pollState() override;
+class ProEM50 : public Appliance {
+	std::string_view           getModel() const override;
+	void                       fromRow(const pqxx::row& row) override;
+	bool                       decodePacket(const QString& pk) override;
+	void                       pollState() override;
+	std::shared_ptr<Appliance> clone() const override;
 };
 
 #endif // APPLIANCE_H

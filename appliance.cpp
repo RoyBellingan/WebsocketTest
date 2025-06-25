@@ -38,23 +38,18 @@ void Appliance::loadAll() {
 	}
 }
 
-void Thermo1::fromRow(const pqxx::row& row) {
-	row["id"].to(dbId);
-	row["mac_address"].to(client->mac);
-}
-
-bool Thermo1::decodeMac(const boost::json::value& json) {
+bool Appliance::decodeMac(const boost::json::value& json) {
 	/**
-	 * We should receive something like this
-	 *
-	 * {
-	 ...
-	"result": {
-	"mac": "CC8DA2652404",
-	        ...
-	 *
-	 * We will not try to extract from the name, as can be changed!
-	 */
+	     * We should receive something like this
+	     *
+	     * {
+	     ...
+	    "result": {
+	    "mac": "CC8DA2652404",
+	            ...
+	     *
+	     * We will not try to extract from the name, as can be changed!
+	     */
 
 	if (auto ptr = json.try_at_pointer("/result/mac"); ptr) {
 		auto s = ptr->try_as_string();
@@ -76,6 +71,15 @@ bool Thermo1::decodeMac(const boost::json::value& json) {
 	return true;
 }
 
+string_view Thermo1::getModel() const {
+	return "S3XT-0S"sv;
+}
+
+void Thermo1::fromRow(const pqxx::row& row) {
+	row["id"].to(dbId);
+	row["mac_address"].to(client->mac);
+}
+
 bool Thermo1::decodePacket(const QString& pk) {
 	auto res = parseJson(pk, false);
 	if (res.position) {
@@ -85,7 +89,7 @@ bool Thermo1::decodePacket(const QString& pk) {
 }
 
 void Thermo1::pollState() {
-	/** The usage of the ID is critical, because they do not send back what you asked -.-
+	/** The usage of the ID is critical, because they do not send back what you asked and so you can connect a request to a response in case of async, MQTT is alive -.-
 {   "id": 5,   "jsonrpc": "2.0",   "method": "Number.GetStatus",   "params": { "id": 200 } } -> humidty
 {"id":5,"src":"st1820-cc8da2652404","result":{"value":49,"source":"sys","last_update_ts":1749001693}}
 
@@ -100,17 +104,17 @@ void Thermo1::pollState() {
 	client->sendMessage(R"({"id": 202, "method": "Number.GetStatus",   "params": { "id": 202 } })", client);
 }
 
-bool Thermo1::identify(const boost::json::value& json) {
+bool Appliance::identify(const boost::json::value& json) const {
 	if (auto ptr = json.try_at_pointer("/result/model"); ptr) {
 		auto s = ptr->try_as_string();
 		if (s.has_value()) {
-			return s.value() == "S3XT-0S";
+			return s.value() == getModel();
 		}
 	}
 	return false;
 }
 
-QString Thermo1::getInitialPacket() {
+QString Client::getInitialPacket() const {
 	return R"(
 {
   "method": "Shelly.GetDeviceInfo",
@@ -132,13 +136,16 @@ bool ApplianceDummy::decodePacket(const QString& pk) {
 	if (res.position) {
 		return false;
 	}
-	if (Thermo1::identify(res.json)) {
-		auto copy            = client;
-		auto newAppliance    = make_shared<Thermo1>();
-		newAppliance->client = copy;
-		copy->appliance      = newAppliance;
-		copy->appliance->decodeMac(res.json);
-		return true;
+	std::vector<Appliance*> apps{new Thermo1, new ProEM50};
+	for (auto& app : apps) {
+		if (app->identify(res.json)) {
+			auto copy            = client;
+			auto newAppliance    = app->clone();
+			newAppliance->client = copy;
+			copy->appliance      = newAppliance;
+			copy->appliance->decodeMac(res.json);
+			return true;
+		}
 	}
 	return false;
 }
@@ -159,5 +166,35 @@ Client::~Client() {
 
 void Client::sendInitialPacket() const {
 	//TODO for the moment we only have 1 type to manage, in the future we will have to iterate over the N types we support and send the initial message
-	qWSocket->sendTextMessage(Thermo1::getInitialPacket());
+	qWSocket->sendTextMessage(Client::getInitialPacket());
+}
+
+std::shared_ptr<Appliance> ApplianceDummy::clone() const {
+	return make_shared<ApplianceDummy>();
+}
+
+std::shared_ptr<Appliance> Thermo1::clone() const {
+	return make_shared<Thermo1>();
+}
+
+std::string_view ApplianceDummy::getModel() const {
+	return "dummy"sv;
+}
+
+string_view ProEM50::getModel() const {
+	return "SPEM-002CEBEU50"sv;
+}
+
+void ProEM50::fromRow(const pqxx::row& row) {
+}
+
+bool ProEM50::decodePacket(const QString& pk) {
+	return true;
+}
+
+void ProEM50::pollState() {
+}
+
+std::shared_ptr<Appliance> ProEM50::clone() const {
+	return make_shared<ProEM50>();
 }
